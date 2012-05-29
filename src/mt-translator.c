@@ -7,8 +7,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 static const unsigned MAX_EVENTS = 10;
+const char *progname;
 
 struct event_dispatcher
 {
@@ -74,10 +76,78 @@ bool event_dispatcher_dispatch(struct event_dispatcher *ed, const struct input_e
 	return true;
 }
 
-int main(void)
+static const struct option long_options[] =
 {
-	const char *input_dev = "/dev/input/event0";
-	const char *out_fifo = "/tmp/mt-translator";
+	{"input",		required_argument,		0,	'i'},
+	{"output",		required_argument,		0,	'o'},
+
+	{"help",			no_argument,		0,	'h'},
+	{"version",			no_argument,		0,	'V'},
+
+	{0, 0, 0, 0}
+};
+
+const char short_options[] = "i:o:hV";
+
+int main(int argc, char **argv)
+{
+	const char *input_dev = NULL;
+	const char *out_fifo = NULL;
+
+	bool display_help = false;
+	bool display_version = false;
+
+	progname = (argc > 0) ? argv[0] : PACKAGE_NAME;
+
+	while (true)
+	{
+		int option_index = 0;
+		int c = getopt_long(argc, argv, short_options, long_options, &option_index);
+		if (c == -1)
+			break;
+
+		switch (c)
+		{
+		case 'i':
+			input_dev = optarg;
+			break;
+		case 'o':
+			out_fifo = optarg;
+			break;
+		case 'h':
+			display_help = true;
+			break;
+		case 'V':
+			display_version = true;
+			break;
+		default:
+			abort();
+		}
+	}
+
+	if (display_help)
+	{
+		printf("Usage: %s {-i input_dev -o output_fifo} | { [--help] [--version]}\n", progname);
+		return 0;
+	}
+
+	if (display_version)
+	{
+		printf("%s %s\n", PACKAGE_NAME, PACKAGE_VERSION);
+		return 0;
+	}
+
+	if (!input_dev)
+	{
+		fprintf(stderr, "Missing input device argument.\n");
+		return 2;
+	}
+
+	if (!out_fifo)
+	{
+		fprintf(stderr, "Missing output fifo argument.\n");
+		return 3;
+	}
 
 	int fd = open(input_dev, O_RDONLY);
 	if (fd < 0)
