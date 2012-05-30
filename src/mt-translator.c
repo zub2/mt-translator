@@ -46,9 +46,23 @@ bool event_dispatcher_init(struct event_dispatcher *ed, const char *fifo_name)
 	ed->fifo_name = NULL;
 	if (fd < 0)
 	{
-		fd = mkfifo(fifo_name, 0330);
-		ed->unlink_on_close = true;
-		ed->fifo_name = strdup(fifo_name);
+		int r = mkfifo(fifo_name, 0660);
+		if (r >= 0)
+		{
+			fd = open(fifo_name, O_WRONLY);
+			if (fd < 0)
+			{
+				unlink(fifo_name);
+				fd = -1;
+			}
+			else
+			{
+				ed->unlink_on_close = true;
+				ed->fifo_name = strdup(fifo_name);
+			}
+		}
+		else
+			fd = -1;
 	}
 
 	ed->fifo_fd = fd;
