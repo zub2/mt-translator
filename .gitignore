@@ -12,3 +12,6 @@ install-sh
 libtool
 ltmain.sh
 missing
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
