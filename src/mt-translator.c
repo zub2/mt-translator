@@ -1,3 +1,30 @@
+/*****************************************************************************
+ *
+ * mt-translator - Multitouch Protocol Translation Tool (MIT license)
+ *
+ * Copyright (C) 2012 David Kozub <zub@linux.fjfi.cvut.cz>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ *
+ ****************************************************************************/
+
 #include <stdio.h>
 #include <mtdev.h>
 #include <sys/types.h>
@@ -90,6 +117,49 @@ bool event_dispatcher_dispatch(struct event_dispatcher *ed, const struct input_e
 	return true;
 }
 
+int translate_loop(const char *input_dev, const char *out_fifo)
+{
+	int fd = open(input_dev, O_RDONLY | O_NONBLOCK);
+	if (fd < 0)
+	{
+		perror("can't open input device");
+		return 1;
+	}
+
+	struct mtdev mtd;
+	if (mtdev_open(&mtd, fd) == 0)
+	{
+		struct event_dispatcher ed;
+		if (event_dispatcher_init(&ed, out_fifo))
+		{
+			struct input_event events[MAX_EVENTS];
+			int i = 0;
+			while (!mtdev_idle(&mtd, fd, -1))
+			{
+				while (i = mtdev_get(&mtd, fd, events, sizeof(events)/sizeof(events[0])), i > 0)
+				{
+					if (!event_dispatcher_dispatch(&ed, events, i))
+					{
+						fprintf(stderr, "dispatch_events failed!\n");
+						break;
+					}
+				}
+			}
+
+			event_dispatcher_destroy(&ed);
+		}
+		else
+			fprintf(stderr, "event_dispatcher_init failed!\n");
+
+		mtdev_close(&mtd);
+	}
+	else
+		fprintf(stderr, "mtdev_open failed!\n");
+
+	close(fd);
+	return 0;
+}
+
 static const struct option long_options[] =
 {
 	{"input",		required_argument,		0,	'i'},
@@ -163,44 +233,5 @@ int main(int argc, char **argv)
 		return 3;
 	}
 
-	int fd = open(input_dev, O_RDONLY);
-	if (fd < 0)
-	{
-		perror("can't open input device");
-		return 0;
-	}
-
-	struct mtdev *mtd = mtdev_new_open(fd);
-	if (mtd != 0)
-	{
-		struct event_dispatcher ed;
-		if (event_dispatcher_init(&ed, out_fifo))
-		{
-			struct input_event events[MAX_EVENTS];
-			int i = 0;
-			while (i = mtdev_get(mtd, fd, events, sizeof(events)/sizeof(events[0])), i > 0)
-			{
-				if (!event_dispatcher_dispatch(&ed, events, i))
-				{
-					fprintf(stderr, "dispatch_events failed!\n");
-					break;
-				}
-			}
-
-			event_dispatcher_destroy(&ed);
-		}
-		else
-		{
-			fprintf(stderr, "event_dispatcher_init failed!\n");
-		}
-		
-		mtdev_close_delete(mtd);
-	}
-	else
-	{
-		fprintf(stderr, "mtdev_new_open failed!\n");
-	}
-
-	close(fd);
-	return 0;
+	return translate_loop(input_dev, out_fifo);
 }
