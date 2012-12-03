@@ -1,0 +1,2 @@
+/* have linux/uinput.h */
+#cmakedefine HAVE_LINUX_UINPUT_H
